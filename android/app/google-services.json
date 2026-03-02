@@ -12,7 +12,20 @@
           "package_name": "com.example.smart_study_planner"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1069485843255-99g7cq1fdgbj68e55kogqa04mpp0nmk5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.smart_study_planner",
+            "certificate_hash": "ae5c609f850f502b0e78ab3a81badc397d7f9cd1"
+          }
+        },
+        {
+          "client_id": "1069485843255-els1gp5ctf037kmpnbku4e6hie0j8db1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD6Pxrv5uKGKfagAI_E83P_nq-W8Jk6rA8"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1069485843255-els1gp5ctf037kmpnbku4e6hie0j8db1.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1069485843255-7btiv80i247utjrl4ipe2mmqvel3me26.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.smartStudyPlanner"
+              }
+            }
+          ]
         }
       }
     }

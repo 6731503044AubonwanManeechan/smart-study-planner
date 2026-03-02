@@ -29,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE9E6ED),
+      backgroundColor: const Color(0xFFECEAF1),
       body: IndexedStack(
         index: _selectedIndex,
         children: [
@@ -41,6 +41,9 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: const Color(0xFF8B1E1E),
+        unselectedItemColor: Colors.grey,
+        showSelectedLabels: false,
+        showUnselectedLabels: false,
         onTap: (index) {
           setState(() {
             _selectedIndex = index;
@@ -48,36 +51,21 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         items: const [
           BottomNavigationBarItem(
-            icon: ImageIcon(
-              AssetImage('assets/images/home.png'),
-              size: 24,
-            ),
-            activeIcon: ImageIcon(
-              AssetImage('assets/images/home.png'),
-              size: 26,
-            ),
+            icon: ImageIcon(AssetImage('assets/images/home.png'), size: 24),
+            activeIcon:
+                ImageIcon(AssetImage('assets/images/home.png'), size: 28),
             label: '',
           ),
           BottomNavigationBarItem(
-            icon: ImageIcon(
-              AssetImage('assets/images/calendar.png'),
-              size: 24,
-            ),
-            activeIcon: ImageIcon(
-              AssetImage('assets/images/calendar.png'),
-              size: 26,
-            ),
+            icon: ImageIcon(AssetImage('assets/images/calendar.png'), size: 24),
+            activeIcon:
+                ImageIcon(AssetImage('assets/images/calendar.png'), size: 28),
             label: '',
           ),
           BottomNavigationBarItem(
-            icon: ImageIcon(
-              AssetImage('assets/images/manage.png'),
-              size: 24,
-            ),
-            activeIcon: ImageIcon(
-              AssetImage('assets/images/manage.png'),
-              size: 26,
-            ),
+            icon: ImageIcon(AssetImage('assets/images/notifications.png'), size: 24),
+            activeIcon:
+                ImageIcon(AssetImage('assets/images/notifications.png'), size: 28),
             label: '',
           ),
         ],
@@ -91,31 +79,59 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Smart Study Planner",
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF3A78B5),
-              ),
+            /// 🔹 Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Smart Study Planner",
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3A78B5),
+                  ),
+                ),
+                Image.asset(
+                  "assets/images/menu.png",
+                  width: 26,
+                  color: const Color(0xFF8B1E1E),
+                )
+              ],
             ),
             const SizedBox(height: 20),
 
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 10,
+            /// 🔹 Hello Row
+            Row(
+              children: [
+                const CircleAvatar(
+                  radius: 22,
+                  backgroundImage:
+                      AssetImage("assets/images/account.png"),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  "Hello , Aubolwan",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
-                ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            /// 🔹 Progress Card
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F1E8),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF8B1E1E), width: 1.5),
               ),
               child: Row(
                 children: [
@@ -128,11 +144,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: CircularProgressIndicator(
                           value: calculateProgress(),
                           strokeWidth: 8,
+                          color: const Color(0xFF8B1E1E),
+                          backgroundColor: Colors.grey.shade300,
                         ),
                       ),
                       Text(
                         "$percent%",
                         style: const TextStyle(
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -147,11 +166,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           "Aubolwan Maneechan",
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         const Text("aubolwan@gmail.com"),
-                        const SizedBox(height: 6),
-                        Text("Task Done : $doneCount"),
-                        const Text("Streak : 6 day"),
+                        const SizedBox(height: 4),
+                        Text("Daily Progress"),
+                        Text("Today : Math"),
                       ],
                     ),
                   ),
@@ -161,6 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 30),
 
+            /// 🔹 Task List
             Column(
               children: _tasks.map((task) {
                 return Padding(
@@ -176,11 +196,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _taskItem(TaskModel task) {
+    String imagePath = "assets/images/book.png";
+
+  if (task.title.contains("Mathe")) {
+    imagePath = "assets/images/mathe.png";
+  } else if (task.title.contains("Probability")) {
+    imagePath = "assets/images/probability.png";
+  } else if (task.title.contains("English")) {
+    imagePath = "assets/images/english.png";
+  } else if (task.title.contains("Chemistry")) {
+    imagePath = "assets/images/chemistry.png";
+  }
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: task.isDone ? Colors.green[100] : Colors.orange[100],
+        borderRadius: BorderRadius.circular(25),
+        color: task.isDone
+            ? const Color(0xFFD8C5E6) // purple
+            : const Color(0xFFF4E6C8), // beige
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6,
+            offset: Offset(0, 4),
+          )
+        ],
       ),
       child: Row(
         children: [
@@ -189,15 +229,23 @@ class _HomeScreenState extends State<HomeScreen> {
             color: task.isDone ? Colors.green : Colors.grey,
           ),
           const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                task.title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text("(${task.duration} min)"),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                Text(
+                  "(${task.duration} minute)",
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ],
+            ),
           ),
         ],
       ),
