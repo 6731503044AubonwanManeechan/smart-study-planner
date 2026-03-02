@@ -1,17 +1,37 @@
-# smart_study_planner
+# 📚 Smart Study Planner
 
-A new Flutter project.
+Smart Study Planner is a productivity mobile application built with Flutter.  
+The app helps students organize tasks, manage study schedules, and plan their learning effectively.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## 🚀 Features
 
-A few resources to get you started if this is your first Flutter project:
+- ✅ Add, edit, and delete tasks
+- 📅 Calendar-based task view
+- 📝 Study planning system
+- ☁ Deployed with Firebase Hosting
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🛠 Tech Stack
+
+- Flutter
+- Dart
+- Firebase
+- Git & GitHub
+
+---
+
+## 📦 Installation
+
+```bash
+flutter pub get
+flutter run
+
+https://smart-study-plannen05.web.app
+
+Version
+Current version: v1.0.0
+
+Developed by Aubonwan Maneechan
