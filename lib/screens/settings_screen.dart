@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'language_screen.dart';
-import 'account_screen.dart';
-import 'help_support_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_language.dart';
+import '../providers/theme_provider.dart';
 import 'login_screen.dart';
+import '../services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,23 +17,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool notifications = true;
   bool restMode = false;
 
+  /// 🔘 Language button
+  Widget buildOptionButton({
+    required String text,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF8B0000) : Colors.grey[300],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 🌗 Theme button
+  Widget buildThemeButton({
+    required String imagePath,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.grey[300] : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Image.asset(
+          imagePath,
+          width: 28,
+          height: 28,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final lang = Provider.of<AppLanguage>(context);
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    /// 🔥 ตัวสำคัญ
+    final isDark = themeProvider.themeMode == ThemeMode.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFECECEC),
+      backgroundColor: isDark ? Colors.black : const Color(0xFFECECEC),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 22),
           child: Column(
             children: [
 
-              /// Back
+              /// 🔙 Back
               Align(
                 alignment: Alignment.centerLeft,
                 child: IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back,
-                    color: Color(0xFF8B0000),
+                    color: isDark ? Colors.white : const Color(0xFF8B0000),
                   ),
                   onPressed: () => Navigator.pop(context),
                 ),
@@ -39,59 +95,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 5),
 
-              /// Title
-              const Text(
-                "Settings",
+              /// 🔥 Title
+              Text(
+                lang.getText("Settings", "ตั้งค่า"),
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.w700,
-                  color: Colors.black,
+                  color: isDark ? Colors.white : Colors.black,
                 ),
               ),
 
               const SizedBox(height: 30),
 
-              /// Card
+              /// 🔥 Card
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
                     color: const Color(0xFFB22222),
-                    width: 1,
                   ),
                 ),
                 child: Column(
                   children: [
 
-                    /// Notifications
+                    /// 🔔 Notifications
                     ListTile(
-                      title: const Text(
-                        "Notifications",
+                      title: Text(
+                        lang.getText("Notifications", "การแจ้งเตือน"),
                         style: TextStyle(
-                          fontSize: 18,
                           fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black,
                         ),
                       ),
                       trailing: Switch(
                         value: notifications,
                         onChanged: (val) {
-                          setState(() {
-                            notifications = val;
-                          });
-                        },
+                                  setState(() {
+                                    restMode = val;
+                                  });
+
+                                  final user = FirebaseAuth.instance.currentUser;
+                                  if (user == null) return;
+
+                                  if (val) {
+                                    startEyeRestTimer(user); // ✅ เริ่มส่ง email
+                                  } else {
+                                    stopEyeRestTimer(); // ❌ หยุด
+                                  }
+                                },
                         activeColor: Colors.green,
                       ),
                     ),
 
-                    /// Rest Mode
+                    /// 😴 Rest Mode
                     ListTile(
-                      title: const Text(
-                        "Rest Mode Reminder",
+                      title: Text(
+                        lang.getText("Rest Mode Reminder", "แจ้งเตือนพักสายตา"),
                         style: TextStyle(
-                          fontSize: 18,
                           fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black,
                         ),
                       ),
                       trailing: Switch(
@@ -104,100 +168,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
 
-                    /// Language
+                    /// 🌐 Language
                     ListTile(
-                      title: const Text(
-                        "Language",
+                      title: Text(
+                        lang.getText("Language", "ภาษา"),
                         style: TextStyle(
-                          fontSize: 18,
                           fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black,
                         ),
                       ),
-                      trailing: const Text(
-                        "English",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const LanguageScreen(),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          buildOptionButton(
+                            text: "EN",
+                            isSelected: lang.language == "en",
+                            onTap: () {
+                              lang.changeLanguage("en");
+                            },
                           ),
-                        );
-                      },
+                          const SizedBox(width: 8),
+                          buildOptionButton(
+                            text: "TH",
+                            isSelected: lang.language == "th",
+                            onTap: () {
+                              lang.changeLanguage("th");
+                            },
+                          ),
+                        ],
+                      ),
                     ),
 
-                    /// Theme
+                    /// 🎨 Theme
                     ListTile(
-                      title: const Text(
-                        "Theme",
+                      title: Text(
+                        lang.getText("Theme", "ธีม"),
                         style: TextStyle(
-                          fontSize: 18,
                           fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black,
                         ),
                       ),
-                      trailing: const Text(
-                        "Light",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      onTap: () {},
-                    ),
-
-                    /// Account
-                    ListTile(
-                      title: const Text(
-                        "Account",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AccountScreen(),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          buildThemeButton(
+                            imagePath: "assets/images/light.png",
+                            isSelected: !isDark,
+                            onTap: () {
+                              themeProvider.setLightMode();
+                            },
                           ),
-                        );
-                      },
-                    ),
-
-                    /// Help
-                    ListTile(
-                      title: const Text(
-                        "Help & Support",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const HelpSupportScreen(),
+                          const SizedBox(width: 10),
+                          buildThemeButton(
+                            imagePath: "assets/images/Dark.png",
+                            isSelected: isDark,
+                            onTap: () {
+                              themeProvider.setDarkMode();
+                            },
                           ),
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -205,7 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const Spacer(),
 
-              /// Log Out
+              /// 🚪 Log Out
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -219,17 +249,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            const LoginScreen(),
+                        builder: (_) => const LoginScreen(),
                       ),
                       (route) => false,
                     );
                   },
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 15),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
                     child: Text(
-                      "Log Out",
-                      style: TextStyle(
+                      lang.getText("Log Out", "ออกจากระบบ"),
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,

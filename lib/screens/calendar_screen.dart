@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_language.dart';
+import '../models/task_model.dart';
+import 'add_study_task_screen.dart';
+import '../providers/theme_provider.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -9,195 +16,193 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  DateTime _focusedDay = DateTime(2026, 2);
-  DateTime? _selectedDay = DateTime(2026, 2, 5);
-  CalendarFormat _calendarFormat = CalendarFormat.month;
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+
+  User? get user => FirebaseAuth.instance.currentUser;
+  String get userId => user?.uid ?? "";
+
+  Map<DateTime, List<TaskModel>> _events = {};
+
+  List<TaskModel> _getEventsForDay(DateTime day) {
+    return _events[DateTime(day.year, day.month, day.day)] ?? [];
+  }
+
+  void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
+    setState(() {
+      _selectedDay = selectedDay;
+      _focusedDay = focusedDay;
+    });
+  }
+
+  void _loadTasks(List<TaskModel> tasks) {
+    final Map<DateTime, List<TaskModel>> data = {};
+
+    for (var task in tasks) {
+      final date = DateTime(
+        task.dateTime.year,
+        task.dateTime.month,
+        task.dateTime.day,
+      );
+
+      data.putIfAbsent(date, () => []);
+      data[date]!.add(task);
+    }
+
+    _events = data;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE9E6ED),
-      body: SafeArea(
-        child: Stack(
-          children: [
+    final lang = Provider.of<AppLanguage>(context);
 
-            /// ================= MAIN CONTENT =================
-            SingleChildScrollView(
-              child: Column(
-                children: [
+    final themeProvider = Provider.of<ThemeProvider>(context);
+final isDark = themeProvider.themeMode == ThemeMode.dark;
 
-                  const SizedBox(height: 70),
-
-                  /// ===== TITLE =====
-                  const Text(
-                    "Calendar",
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                    ),
-                  ),
-
-                  const SizedBox(height: 25),
-
-                  /// ===== CALENDAR CARD =====
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF2F2F2),
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 10,
-                            offset: Offset(0, 6),
-                          )
-                        ],
-                      ),
-                      child: TableCalendar(
-                        firstDay: DateTime(2000),
-                        lastDay: DateTime(2100),
-                        focusedDay: _focusedDay,
-                        calendarFormat: _calendarFormat,
-                        selectedDayPredicate: (day) =>
-                            isSameDay(_selectedDay, day),
-                        onDaySelected: (selectedDay, focusedDay) {
-                          setState(() {
-                            _selectedDay = selectedDay;
-                            _focusedDay = focusedDay;
-                          });
-                        },
-                        headerStyle: const HeaderStyle(
-                          titleCentered: true,
-                          formatButtonVisible: false,
-                          leftChevronIcon: Icon(Icons.chevron_left),
-                          rightChevronIcon: Icon(Icons.chevron_right),
-                        ),
-                        calendarStyle: const CalendarStyle(
-                          todayDecoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                          selectedDecoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  /// ===== UPCOMING SECTION =====
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 30,
-                    ),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFD9CFB8),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(40),
-                        topRight: Radius.circular(40),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-
-                        const Text(
-                          "Upcoming",
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        const SizedBox(height: 25),
-
-                        _upcomingCard(
-                          "February 15th: Read math textbook + English summary.",
-                        ),
-
-                        const SizedBox(height: 25),
-
-                        _upcomingCard(
-                          "February 19th: Read chemistry book + summary of statistics and probability.",
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            /// ================= TOP LEFT =================
-            Positioned(
-              top: 20,
-              left: 20,
-              child: Column(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Image.asset(
-                      "assets/images/back.png",
-                      width: 26,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Image.asset(
-                    "assets/images/menu.png",
-                    width: 26,
-                  ),
-                ],
-              ),
-            ),
-
-            /// ================= TOP RIGHT =================
-            Positioned(
-              top: 20,
-              right: 20,
-              child: Row(
-                children: [
-                  Image.asset(
-                    "assets/images/calendar2.png",
-                    width: 26,
-                  ),
-                  const SizedBox(width: 20),
-                  Image.asset(
-                    "assets/images/setting2.png",
-                    width: 26,
-                  ),
-                ],
-              ),
-            ),
-          ],
+    /// ❗ login check
+    if (user == null || userId.isEmpty) {
+      return Center(
+        child: Text(
+          lang.getText("Please login", "กรุณาเข้าสู่ระบบ"),
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _upcomingCard(String text) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEDEDED),
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          )
-        ],
+    return Scaffold(
+      backgroundColor: isDark ? Colors.black : const Color(0xFFE9E6ED),
+
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFFD8BFE8),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AddStudyTaskScreen(),
+            ),
+          );
+        },
+        child: const Icon(Icons.add, color: Colors.white),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 15),
+
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('tasks')
+            .snapshots(),
+        builder: (context, snapshot) {
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final tasks = snapshot.data!.docs.map((doc) {
+            return TaskModel.fromMap(
+              doc.id,
+              doc.data() as Map<String, dynamic>,
+            );
+          }).toList();
+
+          _loadTasks(tasks);
+
+          final selectedTasks =
+              _getEventsForDay(_selectedDay ?? _focusedDay);
+
+          return SafeArea(
+            child: Column(
+              children: [
+
+                const SizedBox(height: 20),
+
+                /// 🔥 Title
+                Text(
+                  lang.getText("Calendar", "ปฏิทิน"),
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                /// 📅 Calendar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    child: TableCalendar(
+                      firstDay: DateTime(2000),
+                      lastDay: DateTime(2100),
+                      focusedDay: _focusedDay,
+                      selectedDayPredicate: (day) =>
+                          isSameDay(_selectedDay, day),
+                      onDaySelected: _onDaySelected,
+                      eventLoader: _getEventsForDay,
+                      headerStyle: const HeaderStyle(
+                        titleCentered: true,
+                        formatButtonVisible: false,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                /// 📋 Task list
+                Expanded(
+                  child: selectedTasks.isEmpty
+                      ? Center(
+                          child: Text(
+                            lang.getText(
+                              "No tasks for this day",
+                              "ไม่มีงานในวันนี้",
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: selectedTasks.length,
+                          itemBuilder: (context, index) {
+                            final task = selectedTasks[index];
+
+                            return Container(
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 8),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                ? const Color(0xFF2A2A2A)
+                                : (task.isDone ? Colors.grey[300] : Colors.white),
+                                borderRadius:
+                                    BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    task.title,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      decoration: task.isDone
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                    ),
+                                  ),
+                                  Text("${task.duration} min"),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

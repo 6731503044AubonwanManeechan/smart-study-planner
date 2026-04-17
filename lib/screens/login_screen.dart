@@ -36,10 +36,12 @@ class _LoginScreenState extends State<LoginScreen> {
         );
 
         if (user != null && mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
+                      Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HomeScreen(),
+                      ),
+                    );
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -60,10 +62,12 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await _auth.signInWithGoogle();
 
       if (user != null && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
+                  Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const HomeScreen(),
+                  ),
+                );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
