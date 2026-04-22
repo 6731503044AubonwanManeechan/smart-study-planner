@@ -10,6 +10,7 @@ import 'account_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_language.dart';
 import '../providers/theme_provider.dart';
+import '../services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,61 +19,96 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
+    class _HomeScreenState extends State<HomeScreen> {
+      int _selectedIndex = 0;
+      Set<String> loadingTasks = {};
 
-  String? _userPhotoFromFirestore;
+      String? _userPhotoFromFirestore;
 
-  User? get user => FirebaseAuth.instance.currentUser;
-  String get userId => user!.uid;
+      User? get user => FirebaseAuth.instance.currentUser;
+      String get userId => user!.uid;
 
-  @override
-  void initState() {
-    super.initState();
+      @override
+      void initState() {
+        super.initState();
 
-    FirebaseAuth.instance.userChanges().listen((event) {
-      setState(() {});
-    });
-  }
+        FirebaseAuth.instance.userChanges().listen((event) {
+          setState(() {});
+        });
+      }
 
-ImageProvider? _getProfileImage() {
+    ImageProvider? _getProfileImage() {
 
-  /// 🔥 ถ้าเป็น asset (สำคัญ)
-  if (user?.photoURL != null &&
-      user!.photoURL!.startsWith("assets/")) {
-    return AssetImage(user!.photoURL!);
-  }
+      /// 🔥 ถ้าเป็น asset (สำคัญ)
+      if (user?.photoURL != null &&
+          user!.photoURL!.startsWith("assets/")) {
+        return AssetImage(user!.photoURL!);
+      }
 
-  /// 🔥 ถ้าเป็น network
-  if (user?.photoURL != null &&
-      user!.photoURL!.isNotEmpty) {
-    return NetworkImage(user!.photoURL!);
-  }
+      /// 🔥 ถ้าเป็น network
+      if (user?.photoURL != null &&
+          user!.photoURL!.isNotEmpty) {
+        return NetworkImage(user!.photoURL!);
+      }
 
-  return null;
+      return null;
+    }
+
+      /// ✅ Toggle task (แก้แล้ว)
+void toggleTask(TaskModel task) async {
+              if (task.isDone) return;
+
+              setState(() {
+                loadingTasks.add(task.id); // 🔥 ทำให้ขึ้น ✔ ทันที
+              });
+
+              await Future.delayed(const Duration(milliseconds: 800)); // 🔥 รอ 0.8 วิ
+
+              try {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(userId)
+                    .collection('tasks')
+                    .doc(task.id)
+                    .update({
+                  "isDone": true,
+                  "completedAt": Timestamp.now(),
+                });
+
+                await NotificationService.cancelAll(task.id);
+
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+
+              setState(() {
+                loadingTasks.remove(task.id);
+              });
+            }
+
+Future<void> deleteTask(String taskId) async {
+  try {
+          await NotificationService.cancelAll(taskId);
+
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .collection('tasks')
+              .doc(taskId)
+              .delete();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Deleted successfully')),
+          );
+
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
 }
-
-  /// ✅ Toggle task (แก้แล้ว)
-  void toggleTask(TaskModel task) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('tasks')
-        .doc(task.id)
-        .update({
-      "isDone": !task.isDone,
-    });
-  }
-
-  /// ✅ ลบ task
-  Future<void> deleteTask(String taskId) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('tasks')
-        .doc(taskId)
-        .delete();
-  }
 
   /// ✅ popup confirm
 void confirmDelete(String taskId) {
@@ -108,7 +144,7 @@ void confirmDelete(String taskId) {
                 ),
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 24),
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -121,9 +157,12 @@ void confirmDelete(String taskId) {
 
                   ElevatedButton(
                     onPressed: () async {
-                      await deleteTask(taskId);
-                      Navigator.pop(context);
-                    },
+                          await deleteTask(taskId);
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                          }
+                        },
                     child: Text(lang.getText("Confirm", "ยืนยัน")),
                   ),
                 ],
@@ -180,6 +219,18 @@ String getAchievementIcon(double progress) {
   if (percent >= 20) return "assets/images/IC2.png";
   return "assets/images/IC1.png";
 }
+
+String formatTime(DateTime time) {
+  int hour = time.hour;
+  final minute = time.minute.toString().padLeft(2, '0');
+  final period = hour >= 12 ? "PM" : "AM";
+
+  if (hour > 12) hour -= 12;
+  if (hour == 0) hour = 12;
+
+  return "$hour:$minute $period";
+}
+
 
 @override
 Widget build(BuildContext context) {
@@ -264,25 +315,46 @@ final allTasks = docs
     .toList();
 
 /// 🔥 days (Realtime)
-final days = docs.isEmpty
-    ? 0
-    : docs
-        .where((doc) =>
-            doc.data().toString().contains("createdAt"))
-        .map((e) =>
-            (e['createdAt'] as Timestamp?)?.toDate())
-        .where((date) => date != null)
-        .map((date) =>
-            DateTime(date!.year, date.month, date.day))
-        .toSet()
-        .length;
+final completedDates = docs
+    .where((doc) =>
+    (doc.data() as Map<String, dynamic>)['isDone'] == true &&
+    (doc.data() as Map<String, dynamic>).containsKey('completedAt'))
+    .map((doc) => (doc['completedAt'] as Timestamp).toDate())
+    .map((date) => DateTime(date.year, date.month, date.day))
+    .toSet();
 
-/// 🔥 ใช้คำนวณ (ต้องเอาทั้งหมด)
+final days = completedDates.length;
+
+/// 🔥 เรียง task ตามเวลา
+final sortedTasks = [...allTasks]
+  ..sort((a, b) => a.createdAt!.compareTo(b.createdAt!));
+
+/// 🔥 หา task ล่าสุดที่ยังไม่เสร็จ
+DateTime? lastIncompleteDate;
+
+for (var task in sortedTasks.reversed) {
+  if (!task.isDone) {
+    lastIncompleteDate = task.createdAt;
+    break;
+  }
+}
+
+/// 🔥 ถ้าทำครบหมดแล้ว → reset (0%)
+List<TaskModel> sessionTasks = lastIncompleteDate == null
+    ? []
+    : sortedTasks.where((task) =>
+        task.createdAt!.isAfter(
+          lastIncompleteDate!.subtract(const Duration(days: 1))
+        )
+      ).toList();
+
+/// 🔥 progress ของ session
 double progress =
-    allTasks.isEmpty ? 0 : calculateProgress(allTasks);
+    sessionTasks.isEmpty ? 0 : calculateProgress(sessionTasks);
 
-/// 🔥 ใช้แสดง (เอาเฉพาะยังไม่เสร็จ)
-final tasks = allTasks.where((task) => !task.isDone).toList();
+/// 🔥 แสดงเฉพาะ task ที่ยังไม่เสร็จ
+List<TaskModel> tasks =
+    sessionTasks.where((task) => !task.isDone).toList();
 
         return SafeArea(
           child: SingleChildScrollView(
@@ -315,7 +387,7 @@ final tasks = allTasks.where((task) => !task.isDone).toList();
                   ],
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 /// Hello
                   Row(
@@ -350,7 +422,7 @@ final tasks = allTasks.where((task) => !task.isDone).toList();
                       ),
                     ],
                   ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 /// Progress Card
                 Container(
@@ -413,7 +485,7 @@ final tasks = allTasks.where((task) => !task.isDone).toList();
                   ),
                 ),
 
-                const SizedBox(height: 30),
+                const SizedBox(height: 24),
 
         Container(
           padding: const EdgeInsets.all(18),
@@ -437,6 +509,8 @@ final tasks = allTasks.where((task) => !task.isDone).toList();
       ),
 
       const SizedBox(width: 15),
+
+      
 
       Expanded(
         child: Column(
@@ -462,12 +536,14 @@ final tasks = allTasks.where((task) => !task.isDone).toList();
             )
           ],
         ),
+        
       )
     ],
   ),
 ),
+const SizedBox(height: 24),
 
-                /// Tasks
+
                 /// Tasks
             if (tasks.isEmpty)
               Center(child: Text(lang.getText("No tasks yet", "ยังไม่มีงาน")))
@@ -475,7 +551,7 @@ final tasks = allTasks.where((task) => !task.isDone).toList();
               Column(
                 children: tasks.map((task) {
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.only(bottom: 24),
                     child: _taskItem(task),
                   );
                 }).toList(),
@@ -488,72 +564,85 @@ final tasks = allTasks.where((task) => !task.isDone).toList();
     );
   }
 
-Widget _taskItem(TaskModel task) {
 
+Widget _taskItem(TaskModel task) {
   final themeProvider = Provider.of<ThemeProvider>(context);
   final isDark = themeProvider.themeMode == ThemeMode.dark;
 
-  return GestureDetector(
-    onTap: () => toggleTask(task),
-    child: Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-        color: isDark
-          ? const Color(0xFF2A2A2A)
-          : (task.isDone
-              ? const Color(0xFFD8C5E6)
-              : const Color(0xFFF4E6C8)),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
-            offset: Offset(0, 4),
-          )
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(
-            task.isDone
-                ? Icons.check_circle
-                : Icons.radio_button_unchecked,
-            color: task.isDone ? Colors.green : Colors.grey,
-          ),
+  /// ✅ ต้องอยู่ในนี้เท่านั้น
+  bool isLoading = loadingTasks.contains(task.id);
 
-          const SizedBox(width: 14),
-
-          /// 🔥 แก้ตรงนี้
-          Image.asset(
-            task.image,
-            width: 45,
-            height: 45,
-          ),
-
-          const SizedBox(width: 14),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text("${task.duration} min"),
-              ],
+  return AnimatedOpacity(
+    duration: const Duration(milliseconds: 400),
+    opacity: (task.isDone || isLoading) ? 0.4 : 1,
+    child: GestureDetector(
+      onTap: () => toggleTask(task),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(25),
+          color: isDark
+              ? const Color(0xFF2A2A2A)
+              : (task.isDone || isLoading
+                  ? const Color(0xFFD8C5E6)
+                  : const Color(0xFFF4E6C8)),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 6,
+              offset: Offset(0, 4),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              (task.isDone || isLoading)
+                  ? Icons.check_circle
+                  : Icons.radio_button_unchecked,
+              color: (task.isDone || isLoading)
+                  ? Colors.green
+                  : Colors.grey,
             ),
-          ),
 
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () => confirmDelete(task.id),
-          ),
-        ],
+            const SizedBox(width: 14),
+
+            Image.asset(
+              task.image,
+              width: 45,
+              height: 45,
+            ),
+
+            const SizedBox(width: 14),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      decoration: (task.isDone || isLoading)
+                          ? TextDecoration.lineThrough
+                          : null,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${formatTime(task.dateTime)} - ${formatTime(task.dateTime.add(Duration(minutes: task.duration)))}",
+                  ),
+                ],
+              ),
+            ),
+
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => confirmDelete(task.id),
+            ),
+          ],
+        ),
       ),
     ),
   );

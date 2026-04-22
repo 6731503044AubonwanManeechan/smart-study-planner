@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/app_language.dart';
 import '../providers/theme_provider.dart';
 import 'login_screen.dart';
-import '../services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,8 +14,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool notifications = true;
-  bool restMode = false;
 
   /// 🔘 Language button
   Widget buildOptionButton({
@@ -69,9 +67,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final lang = Provider.of<AppLanguage>(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
-
-    /// 🔥 ตัวสำคัญ
     final isDark = themeProvider.themeMode == ThemeMode.dark;
+    final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       backgroundColor: isDark ? Colors.black : const Color(0xFFECECEC),
@@ -107,135 +104,141 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 30),
 
-              /// 🔥 Card
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: const Color(0xFFB22222),
-                  ),
-                ),
-                child: Column(
-                  children: [
+              /// 🔥 SETTINGS (Realtime 🔥)
+              StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user!.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
 
-                    /// 🔔 Notifications
-                    ListTile(
-                      title: Text(
-                        lang.getText("Notifications", "การแจ้งเตือน"),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : Colors.black,
-                        ),
-                      ),
-                      trailing: Switch(
-                        value: notifications,
-                        onChanged: (val) {
-                                  setState(() {
-                                    restMode = val;
-                                  });
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                                  final user = FirebaseAuth.instance.currentUser;
-                                  if (user == null) return;
+                  final data = snapshot.data!.data() as Map<String, dynamic>?;
 
-                                  if (val) {
-                                    startEyeRestTimer(user); // ✅ เริ่มส่ง email
-                                  } else {
-                                    stopEyeRestTimer(); // ❌ หยุด
-                                  }
-                                },
-                        activeColor: Colors.green,
-                      ),
+                  bool notifications = data?['notificationsEnabled'] ?? true;
+                  bool restMode = data?['restModeEnabled'] ?? false;
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFFB22222)),
                     ),
+                    child: Column(
+                      children: [
 
-                    /// 😴 Rest Mode
-                    ListTile(
-                      title: Text(
-                        lang.getText("Rest Mode Reminder", "แจ้งเตือนพักสายตา"),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : Colors.black,
+                        /// 🔔 Notifications
+                        ListTile(
+                          title: Text(
+                            lang.getText("Notifications", "การแจ้งเตือน"),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : Colors.black,
+                            ),
+                          ),
+                          trailing: Switch(
+                            value: notifications,
+                            onChanged: (val) async {
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.uid)
+                                  .set({
+                                "notificationsEnabled": val,
+                              }, SetOptions(merge: true));
+                            },
+                            activeColor: Colors.green,
+                          ),
                         ),
-                      ),
-                      trailing: Switch(
-                        value: restMode,
-                        onChanged: (val) {
-                          setState(() {
-                            restMode = val;
-                          });
-                        },
-                      ),
-                    ),
 
-                    /// 🌐 Language
-                    ListTile(
-                      title: Text(
-                        lang.getText("Language", "ภาษา"),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : Colors.black,
+                        /// 😴 Rest Mode
+                        ListTile(
+                          title: Text(
+                            lang.getText("Rest Mode Reminder", "แจ้งเตือนพักสายตา"),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : Colors.black,
+                            ),
+                          ),
+                          trailing: Switch(
+                            value: restMode,
+                            onChanged: (val) async {
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.uid)
+                                  .set({
+                                "restModeEnabled": val,
+                              }, SetOptions(merge: true));
+                            },
+                            activeColor: Colors.blue,
+                          ),
                         ),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          buildOptionButton(
-                            text: "EN",
-                            isSelected: lang.language == "en",
-                            onTap: () {
-                              lang.changeLanguage("en");
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          buildOptionButton(
-                            text: "TH",
-                            isSelected: lang.language == "th",
-                            onTap: () {
-                              lang.changeLanguage("th");
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
 
-                    /// 🎨 Theme
-                    ListTile(
-                      title: Text(
-                        lang.getText("Theme", "ธีม"),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : Colors.black,
+                        /// 🌐 Language
+                        ListTile(
+                          title: Text(
+                            lang.getText("Language", "ภาษา"),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : Colors.black,
+                            ),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              buildOptionButton(
+                                text: "EN",
+                                isSelected: lang.language == "en",
+                                onTap: () => lang.changeLanguage("en"),
+                              ),
+                              const SizedBox(width: 8),
+                              buildOptionButton(
+                                text: "TH",
+                                isSelected: lang.language == "th",
+                                onTap: () => lang.changeLanguage("th"),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          buildThemeButton(
-                            imagePath: "assets/images/light.png",
-                            isSelected: !isDark,
-                            onTap: () {
-                              themeProvider.setLightMode();
-                            },
+
+                        /// 🎨 Theme
+                        ListTile(
+                          title: Text(
+                            lang.getText("Theme", "ธีม"),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : Colors.black,
+                            ),
                           ),
-                          const SizedBox(width: 10),
-                          buildThemeButton(
-                            imagePath: "assets/images/Dark.png",
-                            isSelected: isDark,
-                            onTap: () {
-                              themeProvider.setDarkMode();
-                            },
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              buildThemeButton(
+                                imagePath: "assets/images/light.png",
+                                isSelected: !isDark,
+                                onTap: () => themeProvider.setLightMode(),
+                              ),
+                              const SizedBox(width: 10),
+                              buildThemeButton(
+                                imagePath: "assets/images/Dark.png",
+                                isSelected: isDark,
+                                onTap: () => themeProvider.setDarkMode(),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
 
               const Spacer(),
 
-              /// 🚪 Log Out
+              /// 🚪 Logout
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -248,9 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onPressed: () {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const LoginScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
                       (route) => false,
                     );
                   },

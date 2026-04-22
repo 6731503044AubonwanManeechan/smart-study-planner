@@ -7,6 +7,7 @@ class TaskModel {
   final bool isDone;
   final DateTime dateTime;
   final String image;
+  final DateTime? createdAt;
 
   TaskModel({
     required this.id,
@@ -15,6 +16,7 @@ class TaskModel {
     required this.isDone,
     required this.dateTime,
     required this.image,
+    this.createdAt,
   });
 
   TaskModel copyWith({
@@ -23,7 +25,8 @@ class TaskModel {
     int? duration,
     bool? isDone,
     DateTime? dateTime,
-    String? image, // ✅ เพิ่ม
+    String? image,
+    DateTime? createdAt,
   }) {
     return TaskModel(
       id: id ?? this.id,
@@ -31,7 +34,8 @@ class TaskModel {
       duration: duration ?? this.duration,
       isDone: isDone ?? this.isDone,
       dateTime: dateTime ?? this.dateTime,
-      image: image ?? this.image, // ✅ เพิ่ม
+      image: image ?? this.image,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -40,19 +44,36 @@ class TaskModel {
       'title': title,
       'duration': duration,
       'isDone': isDone,
-      'dateTime': Timestamp.fromDate(dateTime),
-      'image': image, // ✅ เพิ่ม
+
+      // 🔥 เปลี่ยนเป็น deadline
+      'deadline': Timestamp.fromDate(dateTime),
+
+      'createdAt': Timestamp.now(),
+      'image': image,
     };
   }
 
   factory TaskModel.fromMap(String id, Map<String, dynamic> map) {
+
+    // 🔥 รองรับทั้ง deadline + dateTime (สำคัญมาก)
+    final rawTime = map['deadline'] ?? map['dateTime'];
+
+    DateTime parsedDate;
+
+    if (rawTime != null && rawTime is Timestamp) {
+      parsedDate = rawTime.toDate();
+    } else {
+      parsedDate = DateTime.now(); // กันพัง
+    }
+
     return TaskModel(
       id: id,
       title: map['title'] ?? '',
       duration: map['duration'] ?? 0,
       isDone: map['isDone'] ?? false,
-      dateTime: (map['dateTime'] as Timestamp).toDate(),
+      dateTime: parsedDate,
       image: map['image'] ?? 'assets/images/add1.png',
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
     );
   }
 }

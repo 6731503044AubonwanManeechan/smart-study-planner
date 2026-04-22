@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_language.dart';
 import '../providers/theme_provider.dart';
+import '../services/notification_service.dart';
+
 
 class AddStudyTaskScreen extends StatefulWidget {
   const AddStudyTaskScreen({super.key});
@@ -18,9 +20,10 @@ class _AddStudyTaskScreenState extends State<AddStudyTaskScreen> {
   final TextEditingController _subjectController = TextEditingController();
 
   DateTime _selectedDate = DateTime.now();
+  DateTime _endDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
+  TimeOfDay _deadlineTime = TimeOfDay.now();
 
-  int _duration = 30;
   String _priority = "Medium";
   bool _reminder = false;
 
@@ -28,50 +31,7 @@ class _AddStudyTaskScreenState extends State<AddStudyTaskScreen> {
 
   final String userId = FirebaseAuth.instance.currentUser!.uid;
 
-  Future<void> _saveTask() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final dateTime = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-      _selectedTime.hour,
-      _selectedTime.minute,
-    );
-
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('tasks')
-        .add({
-      "title": _subjectController.text,
-      "dateTime": Timestamp.fromDate(dateTime),
-      "duration": _duration,
-      "priority": _priority,
-      "reminder": _reminder,
-      "isDone": false,
-      "createdAt": Timestamp.now(),
-      "image": _selectedImage,
-    });
-
-    Navigator.pop(context);
-  }
-
-Widget _inputBox({required Widget child}) {
-  final themeProvider = Provider.of<ThemeProvider>(context);
-  final isDark = themeProvider.themeMode == ThemeMode.dark;
-
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
-    decoration: BoxDecoration(
-      color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
-      borderRadius: BorderRadius.circular(15),
-    ),
-    child: child,
-  );
-}
-
-
+  /// ✅ เลือกรูป
   void _selectImage() async {
     final images = List.generate(
       34,
@@ -83,26 +43,38 @@ Widget _inputBox({required Widget child}) {
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Container(
-            padding: const EdgeInsets.all(16),
-            height: 400,
+            padding: const EdgeInsets.all(15),
+            height: 350,
             child: GridView.builder(
               itemCount: images.length,
-              gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 4,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
               ),
               itemBuilder: (context, index) {
+                final isSelected = _selectedImage == images[index];
+
                 return GestureDetector(
                   onTap: () {
                     Navigator.pop(context, images[index]);
                   },
-                  child: CircleAvatar(
-                    backgroundImage: AssetImage(images[index]),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected ? Colors.blue : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.grey[200],
+                      backgroundImage: AssetImage(images[index]),
+                    ),
                   ),
                 );
               },
@@ -119,13 +91,95 @@ Widget _inputBox({required Widget child}) {
     }
   }
 
+  Future<void> _saveTask() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final startDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+
+    DateTime endDateTime = DateTime(
+      _endDate.year,
+      _endDate.month,
+      _endDate.day,
+      _deadlineTime.hour,
+      _deadlineTime.minute,
+    );
+
+    if (endDateTime.isBefore(startDateTime)) {
+      endDateTime = endDateTime.add(const Duration(days: 1));
+    }
+
+    final duration = endDateTime.difference(startDateTime).inMinutes;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('tasks')
+        .add({
+      "title": _subjectController.text,
+      "deadline": Timestamp.fromDate(startDateTime),
+      "duration": duration,
+      "priority": _priority,
+      "reminder": _reminder,
+      "isDone": false,
+      "createdAt": Timestamp.now(),
+      "image": _selectedImage,
+    });
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .get();
+
+    bool enabled = userDoc.data()?['notificationsEnabled'] ?? true;
+
+    if (_reminder && enabled) {
+      final lang = Provider.of<AppLanguage>(context, listen: false);
+
+      NotificationLevel level =
+          _priority == "Low"
+              ? NotificationLevel.low
+              : _priority == "High"
+                  ? NotificationLevel.high
+                  : NotificationLevel.medium;
+
+      await NotificationService.scheduleByLevel(
+        taskId: doc.id,
+        deadline: startDateTime,
+        title: _subjectController.text,
+        isThai: lang.locale.languageCode == 'th',
+        level: level,
+      );
+    }
+
+    Navigator.pop(context);
+  }
+
+  Widget _inputBox({required Widget child}) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.themeMode == ThemeMode.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
 
-final lang = Provider.of<AppLanguage>(context);
-
-final themeProvider = Provider.of<ThemeProvider>(context);
-final isDark = themeProvider.themeMode == ThemeMode.dark;
+    final lang = Provider.of<AppLanguage>(context);
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.themeMode == ThemeMode.dark;
 
     return Scaffold(
       backgroundColor: isDark ? Colors.black : const Color(0xFFE9E6ED),
@@ -146,46 +200,47 @@ final isDark = themeProvider.themeMode == ThemeMode.dark;
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
-                    /// 🔥 Header
                     Center(
-                      child: Column(
+                      child: Text(
+                        lang.getText("Add Study Task", "เพิ่มแผนการเรียน"),
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF5FAAE3),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    /// 🔥 รูป + ดินสอ
+                    Center(
+                      child: Stack(
+                        alignment: Alignment.bottomRight,
                         children: [
-                          Text(
-                            lang.getText("Add Study Task", "เพิ่มแผนการเรียน"),
-                            style: const TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF5FAAE3),
-                            ),
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundColor: Colors.grey[200],
+                            backgroundImage: AssetImage(_selectedImage),
                           ),
-
-                          const SizedBox(height: 15),
-
-                          Stack(
-                            alignment: Alignment.bottomRight,
-                            children: [
-                              CircleAvatar(
-                                radius: 40,
-                                backgroundImage: AssetImage(_selectedImage),
+                          GestureDetector(
+                            onTap: _selectImage,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.grey),
                               ),
-                              GestureDetector(
-                                onTap: _selectImage,
-                                child: const CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor: Colors.grey,
-                                  child: Icon(Icons.edit,
-                                      size: 16, color: Colors.white),
-                                ),
-                              ),
-                            ],
+                              child: const Icon(Icons.edit, size: 18),
+                            ),
                           ),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 25),
 
-                    /// Subject
                     Text(lang.getText("Subject", "วิชา")),
                     const SizedBox(height: 8),
 
@@ -198,200 +253,217 @@ final isDark = themeProvider.themeMode == ThemeMode.dark;
                           borderRadius: BorderRadius.circular(15),
                         ),
                       ),
-                      validator: (value) =>
-                          value!.isEmpty
-                              ? lang.getText("Enter subject", "กรอกชื่อวิชา")
-                              : null,
                     ),
 
                     const SizedBox(height: 20),
 
-                    /// Date
-                    Text(lang.getText("Date", "วันที่")),
-                    const SizedBox(height: 8),
-
-                    GestureDetector(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _selectedDate,
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (picked != null) {
-                          setState(() {
-                            _selectedDate = picked;
-                          });
-                        }
-                      },
-                      child: _inputBox(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
-                            ),
-                            const Icon(Icons.calendar_today),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    Row(
+                    /// START DATE + TIME
+                    Column(
                       children: [
 
-                        /// Time
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(lang.getText("Time", "เวลา")),
-                              const SizedBox(height: 8),
-                              GestureDetector(
+                        Row(
+                          children: [
+                            Expanded(child: Text("Start Date")),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text("Start Time")),
+                          ],
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: _selectedDate,
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (picked != null) setState(() => _selectedDate = picked);
+                                },
+                                child: _inputBox(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text("${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}"),
+                                      const Icon(Icons.calendar_today, size: 18),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(width: 10),
+
+                            Expanded(
+                              child: GestureDetector(
                                 onTap: () async {
                                   final picked = await showTimePicker(
                                     context: context,
                                     initialTime: _selectedTime,
                                   );
-                                  if (picked != null) {
-                                    setState(() {
-                                      _selectedTime = picked;
-                                    });
-                                  }
+                                  if (picked != null) setState(() => _selectedTime = picked);
                                 },
                                 child: _inputBox(
                                   child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(_selectedTime.format(context)),
-                                      const Icon(Icons.access_time),
+                                      const Icon(Icons.access_time, size: 18),
                                     ],
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(width: 15),
-
-                        /// Duration
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(lang.getText("Duration", "ระยะเวลา")),
-                              const SizedBox(height: 8),
-                              DropdownButtonFormField<int>(
-                                value: _duration,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
-                                  border: OutlineInputBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(15),
-                                  ),
-                                ),
-                                items: const [
-                                  DropdownMenuItem(value: 30, child: Text("30 minutes")),
-                                  DropdownMenuItem(value: 60, child: Text("1 hour")),
-                                  DropdownMenuItem(value: 120, child: Text("2 hours")),
-                                  DropdownMenuItem(value: 180, child: Text("3 hours")),
-                                ],
-                                onChanged: (value) {
-                                  setState(() {
-                                    _duration = value!;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
 
                     const SizedBox(height: 20),
 
-                    /// Priority
-                    Text(lang.getText("Priority", "ความสำคัญ")),
-                    const SizedBox(height: 8),
+                    /// END DATE + TIME
+                    Column(
+                    children: [
 
-                    DropdownButtonFormField<String>(
-                      value: _priority,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(child: Text("End Date")),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text("End Time")),
+                        ],
                       ),
-                      items: const [
-                        DropdownMenuItem(value: "Low", child: Text("Low")),
-                        DropdownMenuItem(value: "Medium", child: Text("Medium")),
-                        DropdownMenuItem(value: "High", child: Text("High")),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _priority = value!;
-                        });
-                      },
-                    ),
+
+                      const SizedBox(height: 6),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: _endDate,
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) setState(() => _endDate = picked);
+                              },
+                              child: _inputBox(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text("${_endDate.day}/${_endDate.month}/${_endDate.year}"),
+                                    const Icon(Icons.calendar_today, size: 18),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () async {
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: _deadlineTime,
+                                );
+                                if (picked != null) setState(() => _deadlineTime = picked);
+                              },
+                              child: _inputBox(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(_deadlineTime.format(context)),
+                                    const Icon(Icons.access_time, size: 18),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
 
                     const SizedBox(height: 20),
 
-                    /// Reminder
+                    /// 🔥 PRIORITY
+                  Text(lang.getText("Priority", "ลำดับความสำคัญ")),
+                  const SizedBox(height: 8),
+
+                  DropdownButtonFormField<String>(
+                    value: _priority,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: "Low", child: Text("Low")),
+                      DropdownMenuItem(value: "Medium", child: Text("Medium")),
+                      DropdownMenuItem(value: "High", child: Text("High")),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _priority = value!;
+                      });
+                    },
+                  ),
+
                     CheckboxListTile(
                       value: _reminder,
                       title: Text(lang.getText("Reminder", "แจ้งเตือน")),
-                      contentPadding: EdgeInsets.zero,
                       onChanged: (value) {
-                        setState(() {
-                          _reminder = value!;
-                        });
+                        setState(() => _reminder = value!);
                       },
                     ),
 
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 20),
 
                     Row(
-                      children: [
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
 
-                        /// Cancel
-                        Expanded(
-                          child: OutlinedButton(
+                          /// ❌ Cancel
+                          OutlinedButton(
                             onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: isDark ? Colors.white : Colors.black, // 🔥 ปรับตามโหมด
+                              side: BorderSide(
+                                color: isDark ? Colors.white38 : Colors.black38, // 🔥 เส้นนุ่มขึ้น
+                              ),
+                              minimumSize: const Size(130, 50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
                             child: Text(lang.getText("Cancel", "ยกเลิก")),
                           ),
-                        ),
 
-                        const SizedBox(width: 20),
-
-                        /// Save
-                        Expanded(
-                        child: ElevatedButton(
-                          onPressed: _saveTask,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF5FAAE3),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(130, 50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
+                          /// ✅ Save
+                          ElevatedButton(
+                            onPressed: _saveTask,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF5FAAE3),
+                              foregroundColor: Colors.white,
+                              elevation: 2, // 🔥 เพิ่มเงาให้ดูดีขึ้น
+                              minimumSize: const Size(130, 50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
                             ),
+                            child: Text(lang.getText("Save", "บันทึก")),
                           ),
-                          child: Text(
-                            lang.getText("Save", "บันทึก"),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      ],
-                    )
+                        ],
+                      )
                   ],
                 ),
               ),
